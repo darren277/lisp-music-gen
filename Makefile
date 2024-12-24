@@ -1,11 +1,11 @@
 include .env
 
-PORT ?= 5678
-PG_HOST ?= 172.18.0.21
+PORT ?= 5648
+PG_HOST ?= localhost
 PG_PORT ?= 5432
 PG_USER ?= myusername
 PG_PASS ?= mypassword
-PG_DB ?= 
+PG_DB ?= musicgen
 
 LISP=sbcl
 
@@ -23,7 +23,7 @@ ifeq ($(OS),Windows_NT)
 	PYTHON_EXEC=$(VENV)/Scripts/python
 endif
 
-.PHONY: run-tests generate-audio generate-audio-cli clean setup-env install-deps
+.PHONY: run-tests generate-audio generate-audio-cli clean setup-env install-deps run-server install-lisp-deps create-db init-db install-quicklisp
 
 run-tests:
 	$(LISP) --script tests/test-music-gen.lisp
@@ -44,3 +44,21 @@ clean:
 	@echo "Cleaning up generated files..."
 	-$(RM)
 	@echo "Cleanup complete."
+
+
+create-db:
+	PGPASSWORD=$(PG_PASS) psql -U $(PG_USER) -d postgres -c "CREATE DATABASE $(PG_DB);"
+
+init-db:
+	PGPASSWORD=$(PG_PASS) psql -U $(PG_USER) -d $(PG_DB) -c "CREATE TABLE IF NOT EXISTS melodies (id SERIAL PRIMARY KEY, root_frequency FLOAT NOT NULL CHECK (root_frequency > 0), melody TEXT NOT NULL);"
+
+
+install-quicklisp:
+	curl -O https://beta.quicklisp.org/quicklisp.lisp
+	sbcl --load quicklisp.lisp --eval "(quicklisp-quickstart:install)" --eval "(ql:add-to-init-file)" --eval "(quit)"
+
+install-lisp-deps:
+	sbcl --eval "(ql:quickload '(:hunchentoot :postmodern :cl-json))" --eval "(quit)"
+
+run-server: install-lisp-deps
+	PORT=$(PORT) PG_HOST=$(PG_HOST) PG_PORT=$(PG_PORT) PG_DB=$(PG_DB) PG_USER=$(PG_USER) PG_PASS=$(PG_PASS) $(LISP) --script src/web-api.lisp
