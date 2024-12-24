@@ -31,7 +31,7 @@
 
 (defun disconnect-from-db ()
   "Disconnect from the PostgreSQL database."
-  (postmodern:disconnect-toplevel *db-connection*))
+  (postmodern:disconnect-toplevel))
 
 ;; Create table for melodies if it doesn't exist
 (defun ensure-melody-table ()
@@ -59,7 +59,7 @@
 ;; REST API endpoint to generate and save melody
 (defparameter *simple-tune-handler*
   (define-easy-handler (simple-tune :uri "/simple-tune/:root") ()
-    (let* ((root (parse-integer (getf *params* :root)))
+    (let* ((root (parse-integer (hunchentoot:parameter :root)))
           (major-scale-intervals '(0 2 4 5 7 9 11 12))
           (major-scale (generate-scale root major-scale-intervals))
           (melody-length 16)
@@ -158,3 +158,5 @@
               *melody-handler*))
   (start (make-instance 'hunchentoot:easy-acceptor :port port))
   (format t "Server running on port ~a~%" port))
+
+(start-server)
