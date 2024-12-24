@@ -3,9 +3,6 @@
 
 (ql:quickload '(:hunchentoot :postmodern :cl-json))
 
-;;(defpackage :web-api
-;;  (:use :cl :hunchentoot :music-gen :postmodern))
-
 (defpackage :web-api
   (:use :cl :hunchentoot :postmodern)
   (:import-from :music-gen :generate-scale :generate-melody)
@@ -83,37 +80,34 @@
       (cl-json:encode-json-to-string `(:status ,status :message ,message :melody ,melody))
       (cl-json:encode-json-to-string `(:status ,status :message ,message))))
 
-(defparameter *simple-tune-handler*
-  (define-easy-handler (simple-tune :uri "/simple-tune/:root") ()
-    (format t "Entering simple-tune handler...~%")
-    (handler-case
-        (let* ((root (fetch-root))
-               (major-scale (progn
-                              (format t "Generating scale with root: ~a~%" root)
-                              (generate-major-scale root)))
-               (melody-length 16)
-               (melody (progn
-                         (format t "Generating melody from scale: ~a~%" major-scale)
-                         (generate-random-melody major-scale melody-length))))
-          (format t "Saving melody: ~a~%" melody)
-          (save-generated-melody root melody)
-          (setf (header-out "Content-Type") "application/json")
-          (format t "Returning melody response: ~a~%" melody)
-          (build-json-response "success" "Melody generated successfully" melody))
-      (error (e)
-        (format t "Error occurred in simple-tune handler: ~a~%" e)
+(hunchentoot:define-easy-handler (simple-tune :uri "/simple-tune") ()
+  (format t "Entering simple-tune handler...~%")
+  (handler-case
+      (let* ((root (fetch-root))
+              (major-scale (progn
+                            (format t "Generating scale with root: ~a~%" root)
+                            (generate-major-scale root)))
+              (melody-length 16)
+              (melody (progn
+                        (format t "Generating melody from scale: ~a~%" major-scale)
+                        (generate-random-melody major-scale melody-length))))
+        (format t "Saving melody: ~a~%" melody)
+        (save-generated-melody root melody)
         (setf (header-out "Content-Type") "application/json")
-        (build-json-response "error" (princ-to-string e))))))
+        (format t "Returning melody response: ~a~%" melody)
+        (build-json-response "success" "Melody generated successfully" melody))
+    (error (e)
+      (format t "Error occurred in simple-tune handler: ~a~%" e)
+      (setf (header-out "Content-Type") "application/json")
+      (build-json-response "error" (princ-to-string e)))))
 
 ;; REST API endpoint to list all melodies
-(defparameter *list-melodies-handler*
-  (define-easy-handler (list-melodies :uri "/melodies") ()
-    (let ((melodies (fetch-melodies)))
-      (setf (header-out "Content-Type") "application/json")
-      (cl-json:encode-json-to-string `(:status "success" :melodies ,melodies)))))
+(hunchentoot:define-easy-handler (list-melodies :uri "/melodies") ()
+  (let ((melodies (fetch-melodies)))
+    (setf (header-out "Content-Type") "application/json")
+    (cl-json:encode-json-to-string `(:status "success" :melodies ,melodies))))
 
 ;; REST API endpoints for CRUD operations on melodies
-
 (defun handle-unsupported-method ()
   "Handle unsupported HTTP methods."
   (setf (header-out "Content-Type") "application/json")
@@ -134,11 +128,10 @@
           (setf (header-out "Content-Type") "application/json")
           (cl-json:encode-json-to-string `(:status "error" :message "Invalid payload")))))
 
-(defparameter *melodies-handler*
-  (define-easy-handler (melodies-handler :uri "/melodies") ()
-    (case (hunchentoot:request-method *request*)
-      (:post (handle-post-melody))
-      (t (handle-unsupported-method)))))
+(hunchentoot:define-easy-handler (melodies-handler :uri "/melodies") ()
+  (case (hunchentoot:request-method *request*)
+    (:post (handle-post-melody))
+    (t (handle-unsupported-method))))
 
 (defun handle-get-melody (id)
   "Fetch and return the melody by ID."
@@ -175,47 +168,42 @@
     (setf (header-out "Content-Type") "application/json")
     (cl-json:encode-json-to-string `(:status "success" :message "Melody deleted"))))
 
-(defparameter *melody-handler*
-  (define-easy-handler (melody-handler :uri "/melodies/:id") ()
-    (let ((id (hunchentoot:parameter :id)))
-      (case (hunchentoot:request-method *request*)
-        (:get (handle-get-melody id))
-        (:put (handle-update-melody id))
-        (:delete (handle-delete-melody id))
-        (t (handle-unsupported-method))))))
 
-(define-easy-handler (catch-all :uri "/*") ()
+(hunchentoot:define-easy-handler (melody-handler :uri "/melodies/:id") ()
+  (let ((id (hunchentoot:parameter :id)))
+    (case (hunchentoot:request-method *request*)
+      (:get (handle-get-melody id))
+      (:put (handle-update-melody id))
+      (:delete (handle-delete-melody id))
+      (t (handle-unsupported-method)))))
+
+(hunchentoot:define-easy-handler (catch-all :uri "/*") ()
   (let ((response `(:status "error" :message "Unhandled request")))
     (format t "Response plist: ~a~%" response)
     (setf (header-out "Content-Type") "application/json")
     (cl-json:encode-json-to-string response)))
 
-(define-easy-handler (hello :uri "/*") (&key)
-  (handler-case
-      (progn
-        (format t "Handling request URI: ~a~%" (hunchentoot:request-uri *request*))
-        (setf (header-out "Content-Type") "text/plain")
-        "Hello, World!")
-    (error (e)
-      (format t "Error in hello handler: ~a~%" e)
-      (setf (header-out "Content-Type") "text/plain")
-      "Internal Server Error")))
+(hunchentoot:define-easy-handler (say-yo :uri "/yo") (name)
+  (setf (hunchentoot:content-type*) "text/plain")
+  (format nil "Hey~@[ ~A~]!" name))
+
+(setf hunchentoot:*dispatch-table*
+  (list 
+        (hunchentoot:create-prefix-dispatcher "/simple-tune" 'simple-tune)
+        (hunchentoot:create-prefix-dispatcher "/melodies" 'list-melodies)
+        (hunchentoot:create-regex-dispatcher "^/melodies/([0-9]+)$" 'melody-handler)
+        (hunchentoot:create-prefix-dispatcher "/yo" 'say-yo)
+        (hunchentoot:create-prefix-dispatcher "/" 'catch-all)
+  ))
 
 (defun start-server (&key (port (get-env-port 8080)))
   "Start the REST API server on the specified port, defaulting to 8080."
   (connect-to-db)
   (ensure-melody-table)
-  (setf hunchentoot:*dispatch-table*
-        (list #'hello
-              ;;(define-easy-handler (catch-all :uri "/*") () (cl-json:encode-json-to-string `(:status "error" :message "Unhandled request")))
-              ;;*simple-tune-handler*
-              ;;*list-melodies-handler*
-              ;;*melodies-handler*
-              ;;*melody-handler*
-        ))
-  (start (make-instance 'hunchentoot:easy-acceptor :port port))
+  (hunchentoot:start (make-instance 'hunchentoot:easy-acceptor :port port))
   (format t "Dispatch table: ~a~%" hunchentoot:*dispatch-table*)
   (format t "Server running on port ~a~%" port)
+  (format t "Server running on port 5648")
   ;; Prevent SBCL from exiting
   (loop (sleep 1)))
 
