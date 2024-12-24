@@ -74,26 +74,32 @@
       (cl-json:encode-json-to-string `(:status "success" :melodies ,melodies)))))
 
 ;; REST API endpoints for CRUD operations on melodies
+
+(defun handle-unsupported-method ()
+  "Handle unsupported HTTP methods."
+  (setf (header-out "Content-Type") "application/json")
+  (cl-json:encode-json-to-string `(:status "error" :message "Method not allowed")))
+
+(defun handle-post-melody ()
+  "Handle the POST request to create a new melody."
+  (let* ((payload (cl-json:decode-json-from-string (hunchentoot:raw-post-data *request*)))
+         (root-frequency (getf payload :root_frequency))
+         (melody (getf payload :melody)))
+    (if (and root-frequency melody)
+        (progn
+          (postmodern:execute "INSERT INTO melodies (root_frequency, melody) VALUES ($1, $2)"
+                              root-frequency melody)
+          (setf (header-out "Content-Type") "application/json")
+          (cl-json:encode-json-to-string `(:status "success" :message "Melody created"))))
+        (progn
+          (setf (header-out "Content-Type") "application/json")
+          (cl-json:encode-json-to-string `(:status "error" :message "Invalid payload")))))
+
 (defparameter *melodies-handler*
   (define-easy-handler (melodies-handler :uri "/melodies") ()
     (case (hunchentoot:request-method *request*)
-      (:post
-      (let* ((payload (cl-json:decode-json-from-string (hunchentoot:raw-post-data *request*)))
-              (root-frequency (getf payload :root_frequency))
-              (melody (getf payload :melody)))
-        (if (and root-frequency melody)
-            (progn
-              (postmodern:execute "INSERT INTO melodies (root_frequency, melody) VALUES ($1, $2)"
-                                  root-frequency melody)
-              (setf (header-out "Content-Type") "application/json")
-              (cl-json:encode-json-to-string `(:status "success" :message "Melody created"))))
-            (progn
-              (setf (header-out "Content-Type") "application/json")
-              (cl-json:encode-json-to-string `(:status "error" :message "Invalid payload"))))))
-      (t
-      (progn
-        (setf (header-out "Content-Type") "application/json")
-        (cl-json:encode-json-to-string `(:status "error" :message "Method not allowed"))))))
+      (:post (handle-post-melody))
+      (t (handle-unsupported-method)))))
 
 (defun handle-get-melody (id)
   "Fetch and return the melody by ID."
@@ -129,11 +135,6 @@
     (postmodern:execute "DELETE FROM melodies WHERE id = $1" parsed-id)
     (setf (header-out "Content-Type") "application/json")
     (cl-json:encode-json-to-string `(:status "success" :message "Melody deleted"))))
-
-(defun handle-unsupported-method ()
-  "Handle unsupported HTTP methods."
-  (setf (header-out "Content-Type") "application/json")
-  (cl-json:encode-json-to-string `(:status "error" :message "Method not allowed")))
 
 (defparameter *melody-handler*
   (define-easy-handler (melody-handler :uri "/melodies/:id") ()
