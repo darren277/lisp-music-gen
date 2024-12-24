@@ -103,10 +103,10 @@
       (build-json-response "error" (princ-to-string e)))))
 
 ;; REST API endpoint to list all melodies
-(hunchentoot:define-easy-handler (list-melodies :uri "/melodies") ()
-  (let ((melodies (fetch-melodies)))
-    (setf (header-out "Content-Type") "application/json")
-    (cl-json:encode-json-to-string `(:status "success" :melodies ,melodies))))
+;; (hunchentoot:define-easy-handler (list-melodies :uri "/melodies") ()
+;;   (let ((melodies (fetch-melodies)))
+;;     (setf (header-out "Content-Type") "application/json")
+;;     (cl-json:encode-json-to-string `(:status "success" :melodies ,melodies))))
 
 ;; REST API endpoints for CRUD operations on melodies
 (defun handle-unsupported-method ()
@@ -116,23 +116,58 @@
 
 (defun handle-post-melody ()
   "Handle the POST request to create a new melody."
-  (let* ((payload (cl-json:decode-json-from-string (hunchentoot:raw-post-data *request*)))
-         (root-frequency (getf payload :root_frequency))
-         (melody (getf payload :melody)))
-    (if (and root-frequency melody)
-        (progn
-          (postmodern:execute "INSERT INTO melodies (root_frequency, melody) VALUES ($1, $2)"
-                              root-frequency melody)
-          (setf (header-out "Content-Type") "application/json")
-          (cl-json:encode-json-to-string `(:status "success" :message "Melody created"))))
-        (progn
-          (setf (header-out "Content-Type") "application/json")
-          (cl-json:encode-json-to-string `(:status "error" :message "Invalid payload")))))
+  (handler-case
+    (let* ((raw-data (hunchentoot:raw-post-data :want-stream nil))
+           (payload (cl-json:decode-json-from-string 
+                     (if (typep raw-data '(vector (unsigned-byte 8)))
+                         (babel:octets-to-string raw-data)
+                         raw-data)))
+           ;; Use assoc instead of getf for alist access
+           (root-frequency (cdr (assoc :root--frequency payload)))  ; Note double hyphen
+           (melody (cdr (assoc :melody payload))))
+      (format t "Decoded payload: ~A~%" payload)
+      (format t "Root frequency: ~A~%" root-frequency)
+      (format t "Melody: ~A~%" melody)
+      
+      (if (and root-frequency melody)
+          (handler-case
+            (progn
+              (let ((result (first (postmodern:query 
+                           "INSERT INTO melodies (root_frequency, melody) 
+                            VALUES ($1, $2) 
+                            RETURNING id, root_frequency, melody" 
+                           root-frequency 
+                           melody))))
+                (setf (hunchentoot:content-type*) "application/json")
+                (cl-json:encode-json-to-string 
+                 `(:status "success" 
+                   :message "Melody created"
+                   :data, result))))
+            (error (e)
+              (setf (hunchentoot:content-type*) "application/json")
+              (cl-json:encode-json-to-string 
+               `(:status "error" 
+                 :message "Database error occurred" 
+                 :details ,(format nil "~A" e)))))
+          (progn
+            (setf (hunchentoot:content-type*) "application/json")
+            (cl-json:encode-json-to-string 
+             `(:status "error" 
+               :message "Invalid payload - root_frequency and melody are required")))))
+    (error (e)
+      (setf (hunchentoot:content-type*) "application/json")
+      (cl-json:encode-json-to-string 
+       `(:status "error" 
+         :message "Request processing failed" 
+         :details ,(format nil "~A" e))))))
 
-(hunchentoot:define-easy-handler (melodies-handler :uri "/melodies") ()
-  (case (hunchentoot:request-method *request*)
-    (:post (handle-post-melody))
-    (t (handle-unsupported-method))))
+(hunchentoot:define-easy-handler (melodies :uri "/melodies") ()
+  (if (eq (hunchentoot:request-method*) :post)
+      (handle-post-melody)
+      (progn
+        (setf (hunchentoot:content-type*) "application/json")
+        (cl-json:encode-json-to-string 
+         `(:status "error" :message "Method not allowed")))))
 
 (defun handle-get-melody (id)
   "Fetch and return the melody by ID."
@@ -191,7 +226,7 @@
 (setf hunchentoot:*dispatch-table*
   (list 
         (hunchentoot:create-regex-dispatcher "^/simple-tune/(\\d+)$" 'simple-tune)
-        (hunchentoot:create-prefix-dispatcher "/melodies" 'list-melodies)
+        (hunchentoot:create-prefix-dispatcher "/melodies" 'melodies)
         (hunchentoot:create-regex-dispatcher "^/melodies/([0-9]+)$" 'melody-handler)
         (hunchentoot:create-prefix-dispatcher "/yo" 'say-yo)
         (hunchentoot:create-prefix-dispatcher "/" 'catch-all)
