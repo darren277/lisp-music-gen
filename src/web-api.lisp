@@ -157,6 +157,8 @@
               *melodies-handler*
               *melody-handler*))
   (start (make-instance 'hunchentoot:easy-acceptor :port port))
-  (format t "Server running on port ~a~%" port))
+  (format t "Server running on port ~a~%" port)
+  ;; Prevent SBCL from exiting
+  (loop (sleep 1)))
 
 (start-server)
