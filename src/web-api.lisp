@@ -64,14 +64,14 @@
           (melody (generate-melody major-scale melody-length)))
       (save-melody root melody)
       (setf (header-out "Content-Type") "application/json")
-      (json-encode-plist `(:status "success" :melody ,melody)))))
+      (cl-json:encode-json-to-string `(:status "success" :melody ,melody)))))
 
 ;; REST API endpoint to list all melodies
 (defparameter *list-melodies-handler*
   (define-easy-handler (list-melodies :uri "/melodies") ()
     (let ((melodies (fetch-melodies)))
       (setf (header-out "Content-Type") "application/json")
-      (json-encode-plist `(:status "success" :melodies ,melodies)))))
+      (cl-json:encode-json-to-string `(:status "success" :melodies ,melodies)))))
 
 ;; REST API endpoints for CRUD operations on melodies
 (defparameter *melodies-handler*
@@ -86,14 +86,14 @@
               (postmodern:execute "INSERT INTO melodies (root_frequency, melody) VALUES ($1, $2)"
                                   root-frequency melody)
               (setf (header-out "Content-Type") "application/json")
-              (json-encode-plist `(:status "success" :message "Melody created"))))
+              (cl-json:encode-json-to-string `(:status "success" :message "Melody created"))))
             (progn
               (setf (header-out "Content-Type") "application/json")
-              (json-encode-plist `(:status "error" :message "Invalid payload"))))))
+              (cl-json:encode-json-to-string `(:status "error" :message "Invalid payload"))))))
       (t
       (progn
         (setf (header-out "Content-Type") "application/json")
-        (json-encode-plist `(:status "error" :message "Method not allowed"))))))
+        (cl-json:encode-json-to-string `(:status "error" :message "Method not allowed"))))))
 
 (defun handle-get-melody (id)
   "Fetch and return the melody by ID."
@@ -102,10 +102,10 @@
       (if melody
           (progn
             (setf (header-out "Content-Type") "application/json")
-            (json-encode-plist `(:status "success" :melody ,melody)))
+            (cl-json:encode-json-to-string `(:status "success" :melody ,melody)))
           (progn
             (setf (header-out "Content-Type") "application/json")
-            (json-encode-plist `(:status "error" :message "Melody not found")))))))
+            (cl-json:encode-json-to-string `(:status "error" :message "Melody not found")))))))
 
 (defun handle-update-melody (id)
   "Update the melody by ID."
@@ -118,22 +118,22 @@
           (postmodern:execute "UPDATE melodies SET root_frequency = $1, melody = $2 WHERE id = $3"
                               root-frequency melody parsed-id)
           (setf (header-out "Content-Type") "application/json")
-          (json-encode-plist `(:status "success" :message "Melody updated"))))
+          (cl-json:encode-json-to-string `(:status "success" :message "Melody updated"))))
         (progn
           (setf (header-out "Content-Type") "application/json")
-          (json-encode-plist `(:status "error" :message "Invalid payload")))))
+          (cl-json:encode-json-to-string `(:status "error" :message "Invalid payload")))))
 
 (defun handle-delete-melody (id)
   "Delete the melody by ID."
   (let ((parsed-id (parse-integer id)))
     (postmodern:execute "DELETE FROM melodies WHERE id = $1" parsed-id)
     (setf (header-out "Content-Type") "application/json")
-    (json-encode-plist `(:status "success" :message "Melody deleted"))))
+    (cl-json:encode-json-to-string `(:status "success" :message "Melody deleted"))))
 
 (defun handle-unsupported-method ()
   "Handle unsupported HTTP methods."
   (setf (header-out "Content-Type") "application/json")
-  (json-encode-plist `(:status "error" :message "Method not allowed")))
+  (cl-json:encode-json-to-string `(:status "error" :message "Method not allowed")))
 
 (defparameter *melody-handler*
   (define-easy-handler (melody-handler :uri "/melodies/:id") ()
