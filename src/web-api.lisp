@@ -1,5 +1,5 @@
 (load "~/quicklisp/setup.lisp")
-;;(load "music-gen.lisp")
+(load "src/music-gen.lisp")
 
 (ql:quickload '(:hunchentoot :postmodern :cl-json))
 
@@ -7,7 +7,9 @@
 ;;  (:use :cl :hunchentoot :music-gen :postmodern))
 
 (defpackage :web-api
-  (:use :cl :hunchentoot :postmodern))
+  (:use :cl :hunchentoot :postmodern)
+  (:import-from :music-gen :generate-scale :generate-melody)
+)
 
 (in-package :web-api)
 
