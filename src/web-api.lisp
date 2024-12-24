@@ -57,16 +57,53 @@
   (postmodern:query "SELECT id, root_frequency, melody FROM melodies"))
 
 ;; REST API endpoint to generate and save melody
+(defun fetch-root ()
+  "Fetch and validate the root parameter."
+  (let ((root (hunchentoot:parameter :root)))
+    (if root
+        (parse-integer root)
+        (error "Root parameter is missing or invalid."))))
+
+(defun generate-major-scale (root)
+  "Generate a major scale based on the root frequency."
+  (let ((major-scale-intervals '(0 2 4 5 7 9 11 12)))
+    (generate-scale root major-scale-intervals)))
+
+(defun generate-random-melody (scale length)
+  "Generate a random melody of the given length from the scale."
+  (generate-melody scale length))
+
+(defun save-generated-melody (root melody)
+  "Save the generated melody to the database."
+  (save-melody root melody))
+
+(defun build-json-response (status message &optional melody)
+  "Build a JSON response with a status, message, and optional melody."
+  (cl-json:encode-json-to-string
+   (if melody
+       `(:status ,status :message ,message :melody ,melody)
+       `(:status ,status :message ,message))))
+
 (defparameter *simple-tune-handler*
   (define-easy-handler (simple-tune :uri "/simple-tune/:root") ()
-    (let* ((root (parse-integer (hunchentoot:parameter :root)))
-          (major-scale-intervals '(0 2 4 5 7 9 11 12))
-          (major-scale (generate-scale root major-scale-intervals))
-          (melody-length 16)
-          (melody (generate-melody major-scale melody-length)))
-      (save-melody root melody)
-      (setf (header-out "Content-Type") "application/json")
-      (cl-json:encode-json-to-string `(:status "success" :melody ,melody)))))
+    (handler-case
+        (let* ((root (fetch-root))
+               (major-scale (progn
+                              (format t "Generating scale with root: ~a~%" root)
+                              (generate-major-scale root)))
+               (melody-length 16)
+               (melody (progn
+                         (format t "Generating melody from scale: ~a~%" major-scale)
+                         (generate-random-melody major-scale melody-length))))
+          (format t "Saving melody: ~a~%" melody)
+          (save-generated-melody root melody)
+          (setf (header-out "Content-Type") "application/json")
+          (format t "Returning melody response: ~a~%" melody)
+          (build-json-response "success" "Melody generated successfully" melody))
+      (error (e)
+        (format t "Error occurred in simple-tune handler: ~a~%" e)
+        (setf (header-out "Content-Type") "application/json")
+        (build-json-response "error" (princ-to-string e))))))
 
 ;; REST API endpoint to list all melodies
 (defparameter *list-melodies-handler*
