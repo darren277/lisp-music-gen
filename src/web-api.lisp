@@ -61,10 +61,10 @@
         (parse-integer root)
         (error "Root parameter is missing or invalid."))))
 
-(defun generate-major-scale (root)
+(defun generate-major-scale (root-freq)
   "Generate a major scale based on the root frequency."
   (let ((major-scale-intervals '(0 2 4 5 7 9 11 12)))
-    (generate-scale root major-scale-intervals)))
+    (generate-scale root-freq major-scale-intervals)))
 
 (defun generate-random-melody (scale length)
   "Generate a random melody of the given length from the scale."
@@ -80,19 +80,20 @@
       (cl-json:encode-json-to-string `(:status ,status :message ,message :melody ,melody))
       (cl-json:encode-json-to-string `(:status ,status :message ,message))))
 
-(hunchentoot:define-easy-handler (simple-tune :uri "/simple-tune") ()
+(hunchentoot:define-easy-handler (simple-tune :uri "/simple-tune/:root") ()
   (format t "Entering simple-tune handler...~%")
   (handler-case
-      (let* ((root (fetch-root))
+      (let* ((root-str (car (last (cl-ppcre:split "/" (hunchentoot:script-name*)))))
+             (root-freq (parse-integer root-str))
               (major-scale (progn
-                            (format t "Generating scale with root: ~a~%" root)
-                            (generate-major-scale root)))
+                            (format t "Generating scale with root: ~a~%" root-freq)
+                            (generate-major-scale root-freq)))
               (melody-length 16)
               (melody (progn
                         (format t "Generating melody from scale: ~a~%" major-scale)
                         (generate-random-melody major-scale melody-length))))
         (format t "Saving melody: ~a~%" melody)
-        (save-generated-melody root melody)
+        (save-generated-melody root-freq melody)
         (setf (header-out "Content-Type") "application/json")
         (format t "Returning melody response: ~a~%" melody)
         (build-json-response "success" "Melody generated successfully" melody))
@@ -189,7 +190,7 @@
 
 (setf hunchentoot:*dispatch-table*
   (list 
-        (hunchentoot:create-prefix-dispatcher "/simple-tune" 'simple-tune)
+        (hunchentoot:create-regex-dispatcher "^/simple-tune/(\\d+)$" 'simple-tune)
         (hunchentoot:create-prefix-dispatcher "/melodies" 'list-melodies)
         (hunchentoot:create-regex-dispatcher "^/melodies/([0-9]+)$" 'melody-handler)
         (hunchentoot:create-prefix-dispatcher "/yo" 'say-yo)
