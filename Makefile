@@ -1,3 +1,12 @@
+include .env
+
+PORT ?= 5678
+PG_HOST ?= 172.18.0.21
+PG_PORT ?= 5432
+PG_USER ?= myusername
+PG_PASS ?= mypassword
+PG_DB ?= 
+
 LISP=sbcl
 
 PYTHON=python3
