@@ -79,13 +79,13 @@
 
 (defun build-json-response (status message &optional melody)
   "Build a JSON response with a status, message, and optional melody."
-  (cl-json:encode-json-to-string
-   (if melody
-       `(:status ,status :message ,message :melody ,melody)
-       `(:status ,status :message ,message))))
+  (if melody
+      (cl-json:encode-json-to-string `(:status ,status :message ,message :melody ,melody))
+      (cl-json:encode-json-to-string `(:status ,status :message ,message))))
 
 (defparameter *simple-tune-handler*
   (define-easy-handler (simple-tune :uri "/simple-tune/:root") ()
+    (format t "Entering simple-tune handler...~%")
     (handler-case
         (let* ((root (fetch-root))
                (major-scale (progn
@@ -184,16 +184,37 @@
         (:delete (handle-delete-melody id))
         (t (handle-unsupported-method))))))
 
+(define-easy-handler (catch-all :uri "/*") ()
+  (let ((response `(:status "error" :message "Unhandled request")))
+    (format t "Response plist: ~a~%" response)
+    (setf (header-out "Content-Type") "application/json")
+    (cl-json:encode-json-to-string response)))
+
+(define-easy-handler (hello :uri "/*") (&key)
+  (handler-case
+      (progn
+        (format t "Handling request URI: ~a~%" (hunchentoot:request-uri *request*))
+        (setf (header-out "Content-Type") "text/plain")
+        "Hello, World!")
+    (error (e)
+      (format t "Error in hello handler: ~a~%" e)
+      (setf (header-out "Content-Type") "text/plain")
+      "Internal Server Error")))
+
 (defun start-server (&key (port (get-env-port 8080)))
   "Start the REST API server on the specified port, defaulting to 8080."
   (connect-to-db)
   (ensure-melody-table)
   (setf hunchentoot:*dispatch-table*
-        (list *simple-tune-handler*
-              *list-melodies-handler*
-              *melodies-handler*
-              *melody-handler*))
+        (list #'hello
+              ;;(define-easy-handler (catch-all :uri "/*") () (cl-json:encode-json-to-string `(:status "error" :message "Unhandled request")))
+              ;;*simple-tune-handler*
+              ;;*list-melodies-handler*
+              ;;*melodies-handler*
+              ;;*melody-handler*
+        ))
   (start (make-instance 'hunchentoot:easy-acceptor :port port))
+  (format t "Dispatch table: ~a~%" hunchentoot:*dispatch-table*)
   (format t "Server running on port ~a~%" port)
   ;; Prevent SBCL from exiting
   (loop (sleep 1)))
