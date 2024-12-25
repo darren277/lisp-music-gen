@@ -113,12 +113,6 @@
       (setf (header-out "Content-Type") "application/json")
       (build-json-response "error" (princ-to-string e)))))
 
-;; REST API endpoint to list all melodies
-;; (hunchentoot:define-easy-handler (list-melodies :uri "/melodies") ()
-;;   (let ((melodies (fetch-melodies)))
-;;     (setf (header-out "Content-Type") "application/json")
-;;     (cl-json:encode-json-to-string `(:status "success" :melodies ,melodies))))
-
 ;; REST API endpoints for CRUD operations on melodies
 (defun handle-unsupported-method ()
   "Handle unsupported HTTP methods."
@@ -162,8 +156,8 @@
                  :details ,(format nil "~A" e)))))
           (progn
             (setf (hunchentoot:content-type*) "application/json")
-            (cl-json:encode-json-to-string 
-             `(:status "error" 
+            (cl-json:encode-json-to-string
+             `(:status "error"
                :message "Invalid payload - root_frequency and melody are required")))))
     (error (e)
       (setf (hunchentoot:content-type*) "application/json")
@@ -260,6 +254,7 @@
 (hunchentoot:define-easy-handler (melody-handler :uri "/melodies/:id") ()
   (let ((id (car (cl-ppcre:all-matches-as-strings "\\d+" (hunchentoot:script-name*)))))
     (case (hunchentoot:request-method*)
+      (:get (handle-get-melody id))
       (:put (handle-update-melody id))
       (:delete (handle-delete-melody id))
       (otherwise 
