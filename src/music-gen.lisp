@@ -1,3 +1,9 @@
+(defpackage :music-gen
+  (:use :cl)
+  (:export :generate-scale :generate-melody))
+
+(in-package :music-gen)
+
 (defun generate-scale (root frequencies)
   "Generate a scale given a root frequency and a list of intervals in semitones."
   (mapcar (lambda (interval)
