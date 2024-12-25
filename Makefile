@@ -53,7 +53,7 @@ create-db:
 	PGPASSWORD=$(PG_PASS) psql -U $(PG_USER) -d postgres -c "CREATE DATABASE $(PG_DB);"
 
 init-db:
-	PGPASSWORD=$(PG_PASS) psql -U $(PG_USER) -d $(PG_DB) -c "CREATE TABLE IF NOT EXISTS melodies (id SERIAL PRIMARY KEY, root_frequency FLOAT NOT NULL CHECK (root_frequency > 0), melody TEXT NOT NULL);"
+	PGPASSWORD=$(PG_PASS) psql -U $(PG_USER) -d $(PG_DB) -c "CREATE TABLE IF NOT EXISTS melodies (id INTEGER PRIMARY KEY DEFAULT, root_frequency FLOAT NOT NULL CHECK (root_frequency > 0), melody TEXT NOT NULL);"
 
 
 install-quicklisp:
