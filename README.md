@@ -1,5 +1,9 @@
 # LISP Music Generator
 
+## About
+
+A very basic melody generation tool written in Lisp. There is also Postgres interactivity.
+
 ## Database Initialization
 
 ```shell
